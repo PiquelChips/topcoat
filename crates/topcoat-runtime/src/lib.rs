@@ -5,6 +5,7 @@ mod bind_attribute;
 mod connection;
 mod event_handler;
 mod expr;
+mod expressions;
 #[doc(hidden)]
 pub mod internal;
 mod js;
@@ -27,6 +28,7 @@ pub use bind_attribute::*;
 pub use connection::*;
 pub use event_handler::*;
 pub use expr::*;
+pub use expressions::*;
 pub use js::*;
 #[cfg(feature = "router")]
 pub use layer::*;
@@ -43,4 +45,14 @@ pub use surrogate::*;
 use topcoat_asset::Asset;
 use topcoat_asset_macro::asset;
 
+/// The browser runtime's script, as a bundled asset.
+///
+/// Load it after the [expressions module](expressions()), which defines the
+/// functions the runtime resolves expressions to.
 pub const SCRIPT: Asset = asset!("browser/dist/index.js", rename: "topcoat");
+
+/// The browser runtime's JavaScript, the contents of [`SCRIPT`].
+///
+/// For applications that serve their own assets instead of using the asset
+/// bundler. Serve it as a module script after [`expressions()`].
+pub const SCRIPT_SOURCE: &str = include_str!("../browser/dist/index.js");

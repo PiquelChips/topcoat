@@ -2,7 +2,7 @@
 use topcoat_router::RouterBuilder;
 
 #[cfg(feature = "router")]
-use crate::{MaxRunsPerConnection, PrefetchMode, RuntimeLayer};
+use crate::{MaxRunsPerConnection, PrefetchMode, RuntimeLayer, expressions::ExpressionsRoute};
 
 /// A context marker indicating that the browser runtime has been set up.
 #[derive(Debug, Clone, Copy)]
@@ -11,7 +11,9 @@ pub struct RuntimeSetup;
 /// Sets up the browser runtime on a [`RouterBuilder`].
 #[cfg(feature = "router")]
 pub trait RouterBuilderRuntimeExt {
-    /// Enables page reruns by registering a [`RuntimeLayer`].
+    /// Enables page reruns by registering a [`RuntimeLayer`], and serves the
+    /// [expressions module](crate::expressions()) at its hashed
+    /// [path](crate::Expressions::path) with immutable caching.
     ///
     /// Call this once when building a router that serves interactive pages.
     /// Register your application's pathless layers first so the runtime
@@ -65,7 +67,9 @@ pub trait RouterBuilderRuntimeExt {
 #[cfg(feature = "router")]
 impl RouterBuilderRuntimeExt for RouterBuilder {
     fn runtime(self) -> Self {
-        self.layer(RuntimeLayer).with(RuntimeSetup)
+        self.layer(RuntimeLayer)
+            .route(ExpressionsRoute::new())
+            .with(RuntimeSetup)
     }
 
     fn prefetch(self, mode: PrefetchMode) -> Self {

@@ -9,7 +9,7 @@ use crate::{Js, Surrogate, Surrogated};
 /// A value with a JavaScript expression that can produce it in the browser.
 ///
 /// Expressions that read no signals render as static content. Their
-/// JavaScript remains available when needed for browser execution.
+/// [`Js`] remains available when needed for browser execution.
 #[derive(Debug, Clone)]
 pub struct Expr<T> {
     pub(crate) evaluated: T,
@@ -73,6 +73,14 @@ impl<T> Expr<T> {
         (self.evaluated, self.js)
     }
 
+    /// The browser side of this expression, which another expression
+    /// capturing this one passes to its site as a hole.
+    #[inline]
+    #[must_use]
+    pub fn js(&self) -> &Js {
+        &self.js
+    }
+
     /// Returns the captured value, carrying its dependencies into evaluation.
     #[doc(hidden)]
     pub fn into_captured_value(self) -> T::Surrogate
@@ -98,7 +106,7 @@ where
     /// Panics if the value's surrogate cannot be serialized.
     fn from(value: T) -> Self {
         let surrogate = value.into_surrogate();
-        let js = Js::builder().surrogate(&surrogate).build();
+        let js = Js::value(&surrogate);
         Self::evaluate(|| surrogate.into_real(), js)
     }
 }
@@ -113,15 +121,13 @@ where
             return;
         }
 
-        // <!-- ::topcoat::expr::start("<js>") -->
+        // <!-- ::topcoat::expr::start(<json>) -->
         //
-        // The comment context seals the source, so a `"` inside it renders
-        // as `&quot;` and the quotes stay unambiguous delimiters on the
-        // client.
+        // The comment context seals the JSON, so it cannot close the comment.
         parts.push_comment(|comment| {
-            comment.push_promoted_str_unescaped(&"::topcoat::expr::start(\"");
+            comment.push_promoted_str_unescaped(&"::topcoat::expr::start(");
             self.js.write(comment);
-            comment.push_promoted_str_unescaped(&"\")");
+            comment.push_promoted_str_unescaped(&")");
         });
         self.evaluated.into_view_parts(cx, parts);
         parts.push_comment(|comment| {
@@ -176,15 +182,15 @@ mod tests {
     fn nested_evaluations_propagate_reads_without_contaminating_siblings() {
         let outer = Expr::evaluate(
             || {
-                let inner = Expr::evaluate(mark_signal_read, Js::source(""));
+                let inner = Expr::evaluate(mark_signal_read, crate::js!("undefined"));
                 assert!(!inner.is_static());
-                let sibling = Expr::evaluate(|| 1, Js::source(""));
+                let sibling = Expr::evaluate(|| 1, crate::js!("undefined"));
                 assert!(sibling.is_static());
             },
-            Js::source(""),
+            crate::js!("undefined"),
         );
         assert!(!outer.is_static());
-        assert!(Expr::evaluate(|| 1, Js::source("")).is_static());
+        assert!(Expr::evaluate(|| 1, crate::js!("undefined")).is_static());
     }
 
     #[test]
@@ -197,15 +203,15 @@ mod tests {
                             mark_signal_read();
                             panic!("evaluation failed");
                         },
-                        Js::source(""),
+                        crate::js!("undefined"),
                     )
                 });
                 assert!(panic.is_err());
             },
-            Js::source(""),
+            crate::js!("undefined"),
         );
         assert!(!outer.is_static());
-        assert!(Expr::evaluate(|| 1, Js::source("")).is_static());
+        assert!(Expr::evaluate(|| 1, crate::js!("undefined")).is_static());
     }
 
     #[test]
@@ -219,7 +225,7 @@ mod tests {
                         barrier.wait();
                         barrier.wait();
                     },
-                    Js::source(""),
+                    crate::js!("undefined"),
                 )
             });
             let constant = Expr::evaluate(
@@ -227,7 +233,7 @@ mod tests {
                     barrier.wait();
                     barrier.wait();
                 },
-                Js::source(""),
+                crate::js!("undefined"),
             );
             assert!(constant.is_static());
             assert!(!dynamic.join().unwrap().is_static());

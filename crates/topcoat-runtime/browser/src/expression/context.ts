@@ -4,7 +4,7 @@ import { hydrate } from "./hydrate";
 import type { DehydratedSurrogate } from "./serialized";
 
 /**
- * The `cx` object passed into every compiled expression: the interface
+ * The `cx` object passed into every expression site: the interface
  * generated code uses to hydrate values and access the runtime's signals.
  * Expressions execute as ordinary JavaScript with access to browser globals.
  */

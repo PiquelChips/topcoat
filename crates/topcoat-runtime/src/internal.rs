@@ -1,7 +1,9 @@
 //! Support for the code that runtime macros generate.
 
+pub use inventory;
 pub use serde;
 
+pub use crate::__site as site;
 use crate::{deserialize_tagged, serialize_tagged};
 
 /// Encodes record fields in the format expected by the browser runtime.

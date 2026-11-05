@@ -1,4 +1,4 @@
-import { compile } from "../expression/compile";
+import { resolveJson } from "../expression/resolve";
 import type { Scope } from "../scope";
 import { isAttributeValueViewParts } from "./view";
 
@@ -20,7 +20,7 @@ export function setupBinding(el: Element, attr: Attr, scope: Scope): void {
 	if (!attr.name.startsWith(BIND_PREFIX)) return;
 
 	const name = attr.name.substring(BIND_PREFIX.length);
-	const compute = compile(attr.value, `binding :${name}`);
+	const compute = resolveJson(attr.value, `binding :${name}`);
 
 	const { context } = scope.runtime;
 	scope.effect(() => {

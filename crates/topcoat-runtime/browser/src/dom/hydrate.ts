@@ -9,7 +9,7 @@ import { setupTextExpression } from "./text";
 
 type PendingTextExpression = {
 	start: Comment;
-	js: string;
+	expression: unknown;
 	scope: Scope;
 };
 
@@ -131,7 +131,7 @@ function processMarker(
 		case "expr-start": {
 			textExpressions.push({
 				start: node,
-				js: marker.js,
+				expression: marker.expression,
 				scope: current,
 			});
 			break;
@@ -145,7 +145,7 @@ function processMarker(
 			setupTextExpression(
 				pending.start,
 				node,
-				pending.js,
+				pending.expression,
 				pending.scope,
 				syncText,
 			);

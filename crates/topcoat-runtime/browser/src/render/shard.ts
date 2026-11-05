@@ -1,7 +1,7 @@
 import { morph } from "../../../../topcoat-core/browser/morph";
 import { parseChildren } from "../dom/fragment";
-import { compile, type Expression } from "../expression/compile";
 import { dehydrate } from "../expression/dehydrate";
+import { type Expression, resolve } from "../expression/resolve";
 import { untrack } from "../reactivity";
 import type { Runtime } from "../runtime";
 import type { Scope } from "../scope";
@@ -19,7 +19,7 @@ export class ShardUnit extends RenderUnit {
 	protected readonly label = "Shard";
 	endNode: Comment | null = null;
 	/**
-	 * One compiled function per shard parameter, in declaration order. Each
+	 * One resolved expression per shard parameter, in declaration order. Each
 	 * returns the parameter's current (surrogate) value; reading it inside an
 	 * effect subscribes to whatever signals it touches.
 	 */
@@ -31,12 +31,12 @@ export class ShardUnit extends RenderUnit {
 		/** The request URL for shard renders, with route groups removed. */
 		readonly path: string,
 		readonly identity: string,
-		exprs: string[],
+		exprs: unknown[],
 		readonly startNode: Comment,
 	) {
 		super(parent, runtime);
-		this.computes = exprs.map((js, index) =>
-			compile(js, `shard ${path} argument ${index + 1}`),
+		this.computes = exprs.map((expression, index) =>
+			resolve(expression, `shard ${path} argument ${index + 1}`),
 		);
 	}
 

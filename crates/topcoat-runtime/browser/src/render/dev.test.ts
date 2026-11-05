@@ -5,6 +5,7 @@ import {
 	DEV_RUNTIME_EVENT,
 	type DevRuntimeDetail,
 } from "../../../../topcoat-core/browser/dev";
+import { site } from "../expression/testing";
 import { flushEffects } from "../reactivity";
 import { Runtime } from "../runtime";
 import { F64 } from "../surrogate";
@@ -32,7 +33,7 @@ it("a dev refresh keeps page and shard signals while replacing bindings and head
 	});
 	document.head.innerHTML = `<title>Old</title>${declaration("a", 1)}`;
 	const shard = `<!--::topcoat::shard::start("1", "0", [])-->${declaration("b", 2)}<p>shard</p><!--::topcoat::shard::end("0")-->`;
-	document.body.innerHTML = `${declaration("removed", 1)}<button data-topcoat-on:click="() => cx.signal('a').increment()">add</button><input data-topcoat-bind:value="cx.signal('a').get()">${shard}`;
+	document.body.innerHTML = `${declaration("removed", 1)}<button data-topcoat-on:click="${site((cx) => () => cx.signal("a").increment())}">add</button><input data-topcoat-bind:value="${site((cx) => cx.signal("a").get())}">${shard}`;
 	const runtime = new Runtime();
 	runtime.start(document);
 	runtime.page.listenForDevRefresh();
@@ -45,7 +46,12 @@ it("a dev refresh keeps page and shard signals while replacing bindings and head
 		const button = document.querySelector("button");
 		if (!button) throw new Error("Missing button");
 		const doctype = document.doctype ? "<!doctype html>" : "";
-		const html = `${doctype}<html><head><title>New</title>${declaration("a", 0)}</head><body>${declaration("added", 4)}<button data-topcoat-on:click="() => { cx.signal('a').increment(); cx.signal('a').increment(); }">add two</button><input data-topcoat-bind:value="cx.signal('a').get()">${shard}</body></html>`;
+		const html = `${doctype}<html><head><title>New</title>${declaration("a", 0)}</head><body>${declaration("added", 4)}<button data-topcoat-on:click="${site(
+			(cx) => () => {
+				cx.signal("a").increment();
+				cx.signal("a").increment();
+			},
+		)}">add two</button><input data-topcoat-bind:value="${site((cx) => cx.signal("a").get())}">${shard}</body></html>`;
 		let resolve!: (value: Response) => void;
 		const pending = new Promise<Response>((done) => {
 			resolve = done;
@@ -136,7 +142,7 @@ it("hydrates live updates while streaming and waits until completion to connect"
 		push({
 			t: "swap",
 			region: "ab",
-			html: `${declaration("a", 0)}<p>done!</p><button data-topcoat-on:click="() => cx.signal('a').increment()">add</button>`,
+			html: `${declaration("a", 0)}<p>done!</p><button data-topcoat-on:click="${site((cx) => () => cx.signal("a").increment())}">add</button>`,
 		});
 		await vi.waitFor(() =>
 			expect(document.querySelector("p")?.textContent).toBe("done!"),

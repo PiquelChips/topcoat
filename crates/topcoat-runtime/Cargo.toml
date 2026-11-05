@@ -26,10 +26,12 @@ topcoat-router = { workspace = true, optional = true }
 topcoat-view.workspace = true
 topcoat-view-macro.workspace = true
 
+inventory.workspace = true
 pin-project-lite = { workspace = true, optional = true }
 ref-cast.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2.workspace = true
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 topcoat-router = { workspace = true, optional = true, features = ["websocket"] }

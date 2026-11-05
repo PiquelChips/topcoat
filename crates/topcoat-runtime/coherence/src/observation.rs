@@ -30,7 +30,6 @@ pub enum Value {
 pub enum Outcome {
     Return(Value),
     Panic(String),
-    CompileError(String),
     Exception(String),
 }
 

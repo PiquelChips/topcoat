@@ -13,6 +13,10 @@ use topcoat::{
     view::{View, ViewExt, attributes, component, view},
 };
 
+#[path = "support/sources.rs"]
+mod support;
+use support::sources;
+
 #[component]
 async fn nested_expressions(cx: &Cx) -> Result<impl View> {
     let selected = signal(cx, || true);
@@ -48,6 +52,48 @@ async fn nested_expressions_preserve_static_and_dynamic_bindings() {
     assert!(html.contains("data-topcoat-bind:tabindex"), "{html}");
 
     assert!(!html.contains("::topcoat::dep("), "{html}");
+}
+
+/// Captures a value and a dynamic expression that itself captures a value.
+#[component]
+async fn nested_captures(cx: &Cx) -> Result<impl View> {
+    let count = signal(cx, || 2i32);
+    let step = 3i32;
+    let doubled = expr!(count.get() * 2i32);
+    Ok(view! {
+        <p>$(doubled + step)</p>
+        <button @click=$(|_e| count.set(doubled + step))>"go"</button>
+    })
+}
+
+#[tokio::test]
+async fn captured_values_and_nested_expressions_render_as_data_only() {
+    let cx = &Cx::new();
+    let html = view! { nested_captures() }
+        .single()
+        .await
+        .unwrap()
+        .render(cx);
+
+    // The page names sites and carries the captured value, but no source.
+    let step = "{&quot;v&quot;:{&quot;t&quot;:&quot;i32&quot;,&quot;bits&quot;:32,&quot;v&quot;:&quot;3&quot;}}";
+    assert_eq!(html.matches(step).count(), 2, "{html}");
+    for source in ["cx", "=>", "$0", ".get()", ".mul(", ".add(", ".set("] {
+        assert!(!html.contains(source), "{source} in {html}");
+    }
+
+    // The outer sites take the nested expression and the value as holes,
+    // which the nested site's own source does not inline.
+    let sources = sources(&html);
+    assert!(
+        sources.contains("(cx, $0, $1) => ($0(cx).add($1(cx)))"),
+        "{sources}"
+    );
+    assert!(
+        sources.contains("$0(cx).set($1(cx).add($2(cx)))"),
+        "{sources}"
+    );
+    assert!(sources.contains("$0(cx).get().mul($1(cx))"), "{sources}");
 }
 
 #[test]
@@ -100,13 +146,13 @@ async fn toggle_reaches_the_generated_javascript() {
     let cx = &Cx::new();
     let html = view! { toggle_button() }.single().await.unwrap().render(cx);
 
-    assert!(html.contains(".toggle()"), "{html}");
+    assert!(sources(&html).contains(".toggle()"), "{html}");
 }
 
 #[test]
 fn bool_then_avoids_javascript_thenable_assimilation() {
     let (_, js) = expr!(true.then(|| "yes").unwrap()).into_evaluated_and_js();
-    let source = js.to_source();
+    let source = js.sites()[0].source();
     assert!(source.contains(".then_("), "{source}");
     assert!(!source.contains(".then("), "{source}");
 }
@@ -129,8 +175,8 @@ async fn increment_and_decrement_reach_the_generated_javascript() {
         .unwrap()
         .render(cx);
 
-    assert!(html.contains(".increment()"), "{html}");
-    assert!(html.contains(".decrement()"), "{html}");
+    assert!(sources(&html).contains(".increment()"), "{html}");
+    assert!(sources(&html).contains(".decrement()"), "{html}");
 }
 
 #[component]
@@ -148,7 +194,7 @@ async fn push_str_reaches_the_generated_javascript_with_its_argument() {
         .unwrap()
         .render(cx);
 
-    assert!(html.contains(".push_str("), "{html}");
+    assert!(sources(&html).contains(".push_str("), "{html}");
 }
 
 /// A signal is created before the view and captured by any number of its
@@ -171,11 +217,12 @@ async fn a_signal_is_declared_once_ahead_of_every_capture() {
         .unwrap()
         .render(cx);
 
+    let capture = "{&quot;v&quot;:{&quot;t&quot;:&quot;Signal&quot;";
     let declaration = html.find("<!--::topcoat::signal(").expect(&html);
-    let first_capture = html.find("cx.hydrate(").expect(&html);
+    let first_capture = html.find(capture).expect(&html);
     assert!(declaration < first_capture, "{html}");
     assert_eq!(html.matches("::topcoat::signal(").count(), 1, "{html}");
-    assert_eq!(html.matches("cx.hydrate(").count(), 2, "{html}");
+    assert_eq!(html.matches(capture).count(), 2, "{html}");
 }
 
 #[procedure]
@@ -203,7 +250,7 @@ async fn procedure_call_inside_if_is_an_async_func() {
     .render(cx);
 
     assert!(
-        html.contains("(await (async ()"),
+        sources(&html).contains("(await (async ()"),
         "if block containing an await must be an async anonymous function: {html}"
     );
 }
@@ -228,7 +275,7 @@ async fn procedure_call_inside_block_is_an_async_func() {
     .render(cx);
 
     assert!(
-        html.contains("(await (async ()"),
+        sources(&html).contains("(await (async ()"),
         "block containing an await must be an async anonymous function: {html}"
     );
 }
@@ -256,11 +303,11 @@ async fn push_str_accepts_the_owned_string_from_an_event() {
         .unwrap()
         .render(cx);
 
-    assert!(html.contains(".push_str("), "{html}");
+    assert!(sources(&html).contains(".push_str("), "{html}");
 }
 
 /// A captured value is serialized into the marker comment that carries the
-/// expression source, so its bytes must not be able to close that comment
+/// expression data, so its bytes must not be able to close that comment
 /// early. The `>` of any `-->` in the value renders as an entity, and the
 /// snapshot between the markers is escaped for its text position.
 #[tokio::test]
@@ -273,9 +320,9 @@ async fn a_captured_value_cannot_break_out_of_its_marker_comment() {
         .unwrap()
         .render(cx);
 
-    // The capture reaches the client as a hydrated JSON value.
+    // The capture reaches the client as a JSON value.
     assert!(
-        html.contains(r"cx.hydrate(&quot;--&gt;\&quot;<&amp;&quot;)"),
+        html.contains(r"{&quot;v&quot;:&quot;--&gt;\&quot;<&amp;&quot;}"),
         "{html}"
     );
     // The rendered snapshot of the value is escaped for text.
@@ -284,8 +331,8 @@ async fn a_captured_value_cannot_break_out_of_its_marker_comment() {
     assert!(!html.contains(r#"-->"<&"#), "{html}");
 }
 
-/// A string literal reaches the handler attribute as a hydrated surrogate
-/// with every quote escaped, so it cannot terminate the attribute value.
+/// A string literal is part of its expression's site, so it reaches the
+/// browser through the expressions module rather than the handler attribute.
 #[component]
 async fn quoted_push_str_button(cx: &Cx) -> Result<impl View> {
     let name = signal(cx, String::new);
@@ -307,8 +354,8 @@ async fn a_string_literal_with_quotes_stays_inside_the_handler_attribute() {
         .unwrap()
         .render(cx);
 
-    assert!(html.contains(r"say \&quot;hi\&quot;"), "{html}");
-    assert!(!html.contains(r#"say \"hi"#), "{html}");
+    assert!(sources(&html).contains(r#"say \"hi\""#), "{html}");
+    assert!(!html.contains("say"), "{html}");
 }
 
 #[component]
@@ -347,7 +394,7 @@ async fn expression_conversion_preserves_runtime_prop_bindings() {
         .render(cx);
 
     assert!(html.contains("data-topcoat-bind:open="), "{html}");
-    assert!(html.contains(".get()"), "{html}");
+    assert!(sources(&html).contains(".get()"), "{html}");
 }
 
 #[tokio::test]

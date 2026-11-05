@@ -1,11 +1,11 @@
-use topcoat::runtime::{Expr, Js, Surrogated, expr};
+use topcoat::runtime::{Expr, Surrogated, expr, js};
 use topcoat_runtime_coherence::Case;
 
 #[test]
 fn different_values_fail_with_both_outcomes_and_source() {
     let case = Case::evaluated(
         "deliberately unequal",
-        Expr::evaluate(|| 1.0, Js::source("cx.hydrate(2)")),
+        Expr::evaluate(|| 1.0, js!("cx.hydrate(2)")),
     );
     let report = case.check().unwrap_err().to_string();
     assert!(report.contains("deliberately unequal"));
@@ -20,10 +20,7 @@ fn javascript_exception_does_not_match_a_rust_panic() {
     let (run, _) = expr!(|| value.unwrap()).into_evaluated_and_js();
     let case = Case::deferred(
         "panic versus exception",
-        Expr::evaluate(
-            || run,
-            Js::source("() => { throw new TypeError('broken'); }"),
-        ),
+        Expr::evaluate(|| run, js!("() => { throw new TypeError('broken'); }")),
     );
     let report = case.check().unwrap_err().to_string();
     assert!(report.contains("TypeError: broken"));
@@ -32,10 +29,7 @@ fn javascript_exception_does_not_match_a_rust_panic() {
 
 #[test]
 fn invalid_javascript_is_an_execution_failure() {
-    let case = Case::evaluated(
-        "invalid syntax",
-        Expr::evaluate(|| (), Js::source("const =")),
-    );
+    let case = Case::evaluated("invalid syntax", Expr::evaluate(|| (), js!("const =")));
     assert!(
         case.check()
             .unwrap_err()
@@ -48,7 +42,7 @@ fn invalid_javascript_is_an_execution_failure() {
 fn known_mismatch_cannot_hide_an_unexpected_pass() {
     let case = Case::evaluated(
         "now coherent",
-        Expr::evaluate(|| true, Js::source("cx.hydrate(true)")),
+        Expr::evaluate(|| true, js!("cx.hydrate(true)")),
     );
     assert!(
         case.check_known("some_unit")
@@ -62,7 +56,7 @@ fn known_mismatch_cannot_hide_an_unexpected_pass() {
 fn known_mismatch_cannot_hide_a_different_failure() {
     let case = Case::evaluated(
         "different mismatch",
-        Expr::evaluate(|| false, Js::source("cx.hydrate(true)")),
+        Expr::evaluate(|| false, js!("cx.hydrate(true)")),
     );
     assert!(
         case.check_known("some_unit")
@@ -73,7 +67,7 @@ fn known_mismatch_cannot_hide_a_different_failure() {
 
     let case = Case::evaluated(
         "execution failure",
-        Expr::evaluate(|| true, Js::source("missing_function()")),
+        Expr::evaluate(|| true, js!("missing_function()")),
     );
     let report = format!("{:#}", case.check_known("some_unit").unwrap_err());
     assert!(report.contains("ReferenceError"));
@@ -83,7 +77,7 @@ fn known_mismatch_cannot_hide_a_different_failure() {
 fn missing_baseline_is_an_error() {
     let case = Case::evaluated(
         "missing baseline",
-        Expr::evaluate(|| true, Js::source("cx.hydrate(false)")),
+        Expr::evaluate(|| true, js!("cx.hydrate(false)")),
     );
     assert!(
         case.check_known("unknown")
@@ -95,22 +89,23 @@ fn missing_baseline_is_an_error() {
 
 #[test]
 fn exception_baselines_require_exact_outcomes() {
-    for (value, source, expected) in [
-        (3.0, "cx.hydrate(3)", "now passes"),
+    for (value, js, expected) in [
+        (1.0, js!("cx.hydrate(1)"), "now passes"),
         (
-            3.0,
-            "(() => { throw new SyntaxError('Illegal break statement'); })()",
+            1.0,
+            js!("(() => { throw new TypeError('broken'); })()"),
             "changed",
         ),
-        (2.5, "(() => { break; })()", "changed"),
-        (3.0, "({ unexpected: true })", "Unsupported coherence value"),
+        (2.5, js!("cx.hydrate(2)"), "changed"),
+        (
+            1.0,
+            js!("({ unexpected: true })"),
+            "Unsupported coherence value",
+        ),
     ] {
-        let case = Case::evaluated(
-            "changed break failure",
-            Expr::evaluate(|| value, Js::source(source)),
-        );
-        let report = format!("{:#}", case.check_known("break_inside_if").unwrap_err());
-        assert!(report.contains(expected));
+        let case = Case::evaluated("changed return failure", Expr::evaluate(|| value, js));
+        let report = format!("{:#}", case.check_known("return_inside_if").unwrap_err());
+        assert!(report.contains(expected), "{report}");
     }
 }
 
@@ -120,7 +115,7 @@ fn different_async_values_fail_with_both_outcomes() {
         "deliberately unequal async values",
         Expr::evaluate(
             || async || 1.0.into_surrogate(),
-            Js::source("async () => cx.hydrate(2)"),
+            js!("async () => cx.hydrate(2)"),
         ),
     )
     .unwrap();
@@ -137,7 +132,7 @@ fn javascript_rejection_does_not_match_a_rust_panic() {
         "panic versus rejection",
         Expr::evaluate(
             || run,
-            Js::source("async () => { await Promise.resolve(); throw new TypeError('broken'); }"),
+            js!("async () => { await Promise.resolve(); throw new TypeError('broken'); }"),
         ),
     )
     .unwrap();
@@ -148,19 +143,19 @@ fn javascript_rejection_does_not_match_a_rust_panic() {
 
 #[test]
 fn async_cases_require_a_promise_and_observable_value() {
-    for (source, expected) in [
+    for (js, expected) in [
         (
-            "() => cx.hydrate(1)",
+            js!("() => cx.hydrate(1)"),
             "Compiled async closure must return a promise",
         ),
         (
-            "async () => ({ unexpected: true })",
+            js!("async () => ({ unexpected: true })"),
             "Unsupported coherence value",
         ),
     ] {
         let case = Case::asynchronous(
             "invalid async result",
-            Expr::evaluate(|| async || 1.0.into_surrogate(), Js::source(source)),
+            Expr::evaluate(|| async || 1.0.into_surrogate(), js),
         )
         .unwrap();
         let report = case.check().unwrap_err().to_string();

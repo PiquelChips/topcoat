@@ -1,4 +1,4 @@
-import type { Context } from "../../src/expression/context";
+import { type Expression, resolveJson } from "../../src/expression/resolve";
 import { SignalRegistry } from "../../src/signal-registry";
 import { Panic } from "../../src/surrogate/panic";
 import { FixtureContext } from "./fixture";
@@ -6,14 +6,16 @@ import { observe } from "./observe";
 
 export { setServerUsizeBits } from "../../src/surrogate/integer";
 
-/** Executes production-generated source in an independent runtime context. */
-export function execute(source: string, invoke: boolean): string {
+/**
+ * Resolves production-generated expression data against the expressions
+ * module loaded before this script, then runs it in an independent runtime
+ * context.
+ */
+export function execute(data: string, invoke: boolean): string {
 	const cx = new FixtureContext(new SignalRegistry());
-	const compute = compile(source);
-	if (typeof compute === "string") return compute;
 	let value: unknown;
 	try {
-		value = compute(cx);
+		value = resolve(data)(cx);
 		if (invoke) {
 			if (typeof value !== "function") {
 				throw new Error("Expected a compiled closure");
@@ -33,13 +35,11 @@ export function execute(source: string, invoke: boolean): string {
 }
 
 /** Invokes an async closure and observes its completed value. */
-export async function executeAsync(source: string): Promise<string> {
+export async function executeAsync(data: string): Promise<string> {
 	const cx = new FixtureContext(new SignalRegistry());
-	const compute = compile(source);
-	if (typeof compute === "string") return compute;
 	let value: unknown;
 	try {
-		const run: unknown = compute(cx);
+		const run: unknown = resolve(data)(cx);
 		if (typeof run !== "function") {
 			throw new Error("Expected a compiled async closure");
 		}
@@ -60,15 +60,6 @@ export async function executeAsync(source: string): Promise<string> {
 	return JSON.stringify({ kind: "Return", value: observe(value) });
 }
 
-function compile(source: string): ((cx: Context) => unknown) | string {
-	try {
-		return new Function("cx", `return (${source});`) as (
-			cx: Context,
-		) => unknown;
-	} catch (error) {
-		if (error instanceof SyntaxError) {
-			return JSON.stringify({ kind: "CompileError", value: error.toString() });
-		}
-		throw error;
-	}
+function resolve(data: string): Expression {
+	return resolveJson(data, "coherence case");
 }

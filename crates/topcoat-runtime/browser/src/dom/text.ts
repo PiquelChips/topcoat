@@ -1,15 +1,15 @@
-import { compile } from "../expression/compile";
+import { resolve } from "../expression/resolve";
 import type { Scope } from "../scope";
 import { isNodeViewParts } from "./view";
 
 export function setupTextExpression(
 	start: Comment,
 	end: Comment,
-	js: string,
+	expression: unknown,
 	scope: Scope,
 	syncText: boolean,
 ): void {
-	const compute = compile(js, "text expression");
+	const compute = resolve(expression, "text expression");
 	const { context } = scope.runtime;
 
 	let first = !syncText;

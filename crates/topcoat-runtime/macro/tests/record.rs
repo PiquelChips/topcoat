@@ -87,12 +87,12 @@ fn expressions_construct_records_and_read_fields() {
             count: 3
         }
     );
-    assert!(js.to_source().contains("cx.record({count: "));
+    assert!(js.sites()[0].source().contains("cx.record({count: "));
 
     let order = order();
     let (kind, js) = expr!(order.r#type.len()).into_evaluated_and_js();
     assert_eq!(kind, "pickup".len());
-    assert!(js.to_source().contains(".type.len()"));
+    assert!(js.sites()[0].source().contains(".type.len()"));
 
     let (count, _) = expr!(*order.items.index(0).count).into_evaluated_and_js();
     assert_eq!(count, 2);
@@ -141,5 +141,5 @@ async fn total(cx: &Cx, order: Order) -> Result<Item> {
 fn procedures_accept_and_return_records() {
     let order = order();
     let (_, js) = expr!(async || total(order).await.count).into_evaluated_and_js();
-    assert!(js.to_source().contains(".count"));
+    assert!(js.sites()[0].source().contains(".count"));
 }

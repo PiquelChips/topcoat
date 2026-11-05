@@ -5648,10 +5648,12 @@ name = "topcoat-runtime"
 version = "0.11.0"
 dependencies = [
  "futures-util",
+ "inventory",
  "pin-project-lite",
  "ref-cast",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tokio",
  "topcoat",
  "topcoat-asset",

@@ -17,7 +17,8 @@ use crate::{
 
 /// The value attached to an [`EventHandler`]. Either a Rust expression
 /// (`(expr)` or `$(expr)`) compiled to a handler, or a string literal holding
-/// raw JavaScript that runs on the event.
+/// a JavaScript expression that evaluates to the handler function. Both are
+/// registered as sites of the expressions module.
 pub enum EventHandlerValue {
     Expr(Box<TemplateOrRuntimeExpr>),
     LitStr(LitStr),
@@ -68,12 +69,18 @@ impl LowerView for EventHandler {
         let key = &self.key;
         let value = &self.value;
         match value {
+            // The JavaScript is a site of the expressions module, so only its
+            // id renders into the page.
             EventHandlerValue::LitStr(value) => {
-                builder.str_unescaped("data-topcoat-on:");
-                key.lower(builder);
-                builder.str_unescaped("=\"");
-                builder.attribute_value(&value.value());
-                builder.str_unescaped("\"");
+                builder.expr(
+                    ExprKind::Attributes,
+                    quote! {
+                        #topcoat_runtime::EventHandler::from_js(
+                            #key,
+                            #topcoat_runtime::js!(#value),
+                        )
+                    },
+                );
             }
             EventHandlerValue::Expr(value) => {
                 builder.expr(
@@ -100,7 +107,11 @@ impl LowerAttribute for EventHandler {
                     quote! {
                         {
                             let __key = ::core::convert::Into::<::std::string::String>::into(#key);
-                            __attrs.insert(cx, ::std::format!("data-topcoat-on:{}", __key), #value);
+                            __attrs.insert(
+                                cx,
+                                ::std::format!("data-topcoat-on:{}", __key),
+                                #topcoat_runtime::js!(#value),
+                            );
                         }
                     },
                 );

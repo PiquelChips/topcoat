@@ -17,6 +17,10 @@ use topcoat::{
     view::{View, ViewExt, component, emit, live, view},
 };
 
+#[path = "support/sources.rs"]
+mod support;
+use support::sources;
+
 #[shard]
 async fn stateful(cx: &Cx, label: String) -> Result<impl View> {
     let count = signal(cx, || 0.0);
@@ -323,7 +327,7 @@ async fn a_static_argument_keeps_its_javascript_for_rerenders() {
     let (_, identity) = scope_marker(&inline);
 
     assert!(
-        inline.contains("cx.hydrate(&quot;constant&quot;)"),
+        inline.contains("{&quot;v&quot;:&quot;constant&quot;}"),
         "{inline}"
     );
     assert!(inline.contains("<p>constant "), "{inline}");
@@ -339,7 +343,7 @@ async fn fixed_and_reactive_arguments_render_together() {
     let (_, identity) = scope_marker(&inline);
 
     assert!(inline.contains("<p>shoes 20</p>"), "{inline}");
-    assert!(inline.contains(".get()"), "{inline}");
+    assert!(sources(&inline).contains(".get()"), "{inline}");
     assert!(inline.contains("&quot;v&quot;:&quot;20&quot;"), "{inline}");
 
     let args = format!(

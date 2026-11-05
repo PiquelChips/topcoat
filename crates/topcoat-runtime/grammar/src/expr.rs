@@ -117,8 +117,9 @@ impl Expr {
             rust = quote! { #topcoat_runtime::Surrogate::into_real(#rust) }
         }
 
-        // Clone each capture once. Its JavaScript is inlined at each use;
-        // its cached server value becomes an ordinary surrogate local.
+        // Clone each capture once. Its JavaScript is a hole of this site,
+        // called at each use; its cached server value becomes an ordinary
+        // surrogate local.
         let externals = names.externals();
         let captures = externals.iter().map(|binding| {
             let ident = &binding.rust_ident;
@@ -231,6 +232,27 @@ mod tests {
                 plain.expr_to_tokens().unwrap().to_string(),
                 trailing.expr_to_tokens().unwrap().to_string(),
             );
+        }
+    }
+
+    #[test]
+    fn jumps_must_stay_inside_their_generated_function() {
+        for source in [
+            "|| { loop { if done { break; } break; } }",
+            "|| { while true { if skip { continue; } break; } }",
+            "|| { loop { let value = { break; }; } }",
+        ] {
+            let parsed: Expr = syn::parse_str(source).unwrap();
+            let error = parsed.expr_to_tokens().unwrap_err().to_string();
+            assert!(error.contains("cannot jump out"), "{source}: {error}");
+        }
+        for source in [
+            "|| { loop { break; } }",
+            "|| { while true { continue; } }",
+            "|| { loop { if done { loop { break; } } break; } }",
+        ] {
+            let parsed: Expr = syn::parse_str(source).unwrap();
+            assert!(parsed.expr_to_tokens().is_ok(), "{source}");
         }
     }
 
