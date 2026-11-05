@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { site } from "../expression/testing";
 import { flushEffects } from "../reactivity";
 import { Runtime } from "../runtime";
 import { F64 } from "../surrogate";
@@ -487,6 +488,27 @@ it("prefetches a link on hover and uses the prefetch when it is followed", async
 	expect(calls).toHaveLength(1);
 	expect(location.pathname).toBe("/next");
 	expect(document.body.textContent).toContain("next page");
+});
+
+it("runs the destination's mount handlers when navigation displays it, not when it is prefetched", async () => {
+	const mounted: string[] = [];
+	(globalThis as typeof globalThis & { mounted: string[] }).mounted = mounted;
+	const handler = (name: string) =>
+		`data-topcoat-on:mount="${site(() => () => mounted.push(name))}"`;
+	stubFetch(() => snapshot(page("Next", `<p ${handler("next")}></p>`)));
+	mount(
+		`<p ${handler("home")}></p><a data-topcoat-link="intent" href="/next">x</a>`,
+	);
+	await settle();
+
+	link().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+	await new Promise((resolve) => setTimeout(resolve, 150));
+	await settle();
+	expect(mounted).toEqual(["home"]);
+
+	click(link());
+	await settle();
+	expect(mounted).toEqual(["home", "next"]);
 });
 
 it("prefetches a link as soon as it is focused", async () => {
