@@ -1,4 +1,4 @@
-Topcoat's runtime adds browser interactions to server-rendered pages. Write state and expressions in Rust alongside your markup. The runtime compiles the browser code to JavaScript and includes it with the page.
+Topcoat's runtime adds browser interactions to server-rendered pages. Write state and expressions in Rust alongside your markup. The macros compile the browser code to JavaScript when your application builds, and pages refer to it by name.
 
 The runtime is **highly experimental**. Expressions support a limited set of Rust types and operations, and the API may change.
 
@@ -6,7 +6,7 @@ Use [`link`](struct.link.html) for navigation without a full document reload, wi
 
 # Setup
 
-Interactive pages need the runtime's browser script. `script()` renders the script tag; include it in your document head:
+Interactive pages need the runtime's browser scripts. `script()` renders their script tags; include it in your document head:
 
 ```rust
 # use topcoat::{Result, context::Cx, view::*};
@@ -23,7 +23,7 @@ Ok(view! {
 # }
 ```
 
-Call [`runtime()`](RouterBuilderRuntimeExt::runtime) to enable page reruns, and load the [asset bundle](../asset/index.html) to serve the browser script. Register your application layers before calling `.runtime()`:
+Call [`runtime()`](RouterBuilderRuntimeExt::runtime) to enable page reruns and serve the [expressions script](#content-security-policy), and load the [asset bundle](../asset/index.html) to serve the runtime script. Register your application layers before calling `.runtime()`:
 
 ```rust,no_run
 use topcoat::{
@@ -44,6 +44,46 @@ pub fn router() -> Router {
 The runtime reruns a page by sending its current signal values to the page's URL. The [`RuntimeLayer`] added by `.runtime()` converts this request into a `GET`, so the page and its layouts can render with those values. Registering your layers first lets them handle the rerun as a `GET`. See [`RuntimeLayer`] for the request format and rewrite behavior.
 
 `module_router!()` registers pages from the module tree. `.discover()` adds [procedures](#procedures) and [shards](#shards) from your application. To register a procedure or shard explicitly, pass its name to `.route()`.
+
+# Content Security Policy
+
+The runtime works under a strict Content Security Policy. It never evaluates code from the page, so `script-src` needs no `'unsafe-eval'` and no `'unsafe-inline'`.
+
+The JavaScript of every runtime expression in your application is collected into one **expressions script**, returned by [`expressions()`]. Pages carry only data: the name of each expression's function and the values it captured. An HTML injection cannot add code through the runtime's attributes, and an expression missing from the script fails with its name instead of running.
+
+`script()` loads two scripts:
+
+- the expressions script, from `/_topcoat/runtime/expressions-<hash>.js`, served by `.runtime()`;
+- the runtime, [`SCRIPT`], served by the asset bundle.
+
+Both file names carry a hash of their contents and are cached as immutable. When the application serves both, this policy is enough:
+
+```text
+Content-Security-Policy: script-src 'self'
+```
+
+With [`AssetConfig::hosted_at`](../asset/struct.AssetConfig.html#method.hosted_at), also list the asset host in `script-src`, since the runtime script loads from there.
+
+An application that serves its own assets instead of using the asset bundler can serve both scripts itself: [`expressions()`] gives the expressions script's [source](struct.Expressions.html#method.source) and a hashed [file name](struct.Expressions.html#method.file_name), and [`SCRIPT_SOURCE`] holds the runtime's JavaScript. Load the expressions script first, as a classic `defer` script, then the runtime as a module with the `data-topcoat-usize-bits` attribute:
+
+```rust
+# use topcoat::{Result, context::Cx, view::*};
+# #[component]
+# async fn head(cx: &Cx) -> Result<impl View> {
+let expressions = topcoat::runtime::expressions();
+
+Ok(view! {
+    <script defer=(true) src=(format!("/static/{}", expressions.file_name()))></script>
+    <script
+        type="module"
+        src="/static/topcoat-runtime.js"
+        data-topcoat-usize-bits=(usize::BITS)
+    ></script>
+})
+# }
+```
+
+Serve `topcoat-runtime.js` from a path that changes with [`SCRIPT_SOURCE`], such as one containing its hash, if you cache it as immutable.
 
 # Runtime expressions
 
@@ -120,7 +160,7 @@ Ok(view! {
 # }
 ```
 
-For operations outside the expression vocabulary, use a JavaScript string literal, such as `@click="alert('hi')"`.
+For operations outside the expression vocabulary, use a JavaScript string literal that evaluates to the handler, such as `@click="() => alert('hi')"`. It becomes part of the expressions script, like a [`raw!`](macro.expr.html#embedding-javascript) expression, so it must be valid JavaScript: a syntax error stops every expression in the application from loading.
 
 Signals also have methods for common updates. For example, `$(|_e| count.increment())` adds one to a numeric signal.
 
@@ -299,6 +339,9 @@ Use `.get_untracked()` or `.read_untracked()` to read a value on the server with
 [`Event`]: struct.Event.html
 [`Expr::dynamic`]: struct.Expr.html#method.dynamic
 [`expr!`]: macro.expr.html
+[`expressions()`]: fn.expressions.html
+[`SCRIPT`]: constant.SCRIPT.html
+[`SCRIPT_SOURCE`]: constant.SCRIPT_SOURCE.html
 [`signal`]: fn.signal.html
 [`view!`]: ../view/macro.view.html
 [procedure]: attr.procedure.html

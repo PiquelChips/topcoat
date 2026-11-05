@@ -1,5 +1,7 @@
 The [`expr!`] macro defines an expression that can run on the server and in the browser. It compiles to Rust for the initial render and JavaScript for browser updates. Inside `view!`, write runtime expressions as `$(...)`.
 
+The JavaScript is fixed when your application compiles. It is served in the [expressions script](fn.expressions.html), and the page refers to it by name, with the captured values as data. See [Content Security Policy](index.html#content-security-policy).
+
 Expressions support a subset of Rust with matching behavior in both languages. The supported types, operations, and syntax are described below.
 
 ```rust
@@ -38,7 +40,7 @@ Ok(view! {
 
 Capturing clones the value, so surrounding code can still use it. The browser receives a snapshot from the render. Later server changes do not update that snapshot. Captured values must use the supported types described below. Capturing an owned collection clones its elements. Capturing a slice borrows its elements on the server, but still sends a snapshot to the browser.
 
-A captured `Expr<T>` behaves as `T` inside another expression. The server reuses its evaluated value. The browser evaluates its expression at each use, so signal reads remain reactive, including inside event handlers.
+A captured `Expr<T>` behaves as `T` inside another expression. The server reuses its evaluated value. The browser evaluates its expression at each use, so signal reads remain reactive, including inside event handlers. The captured expression is passed to the outer one's JavaScript as a function, called wherever the value is used, so an untaken branch never evaluates it.
 
 ```rust
 # use topcoat::{Result, context::Cx, runtime::{expr, signal}, view::*};
@@ -79,7 +81,7 @@ Expressions use a subset of Rust's syntax:
 - Blocks, with `let` bindings of plain identifiers; the trailing expression is the block's value.
 - `if`/`else` as an expression.
 - Closures, optionally `async`, and `.await`.
-- `loop`, `while`, `break`, `continue`, and `return`.
+- `loop`, `while`, `break`, `continue`, and `return`. `break` and `continue` must be directly in their loop's body, not inside an `if` or block expression within it.
 
 Unsupported syntax produces a compile error at the expression.
 
@@ -103,6 +105,8 @@ Ok(view! {
 ```
 
 `${ident}` in the JavaScript string inserts a binding from the expression's scope. Omitting the Rust argument restricts the expression to browser execution. You are responsible for keeping the Rust and JavaScript behavior equivalent.
+
+The JavaScript must be a string literal: it is part of the expressions script, which is fixed at compile time. Check that it is valid, since a syntax error stops every expression in the application from loading. It runs in sloppy mode, like a classic script.
 
 Signal reads in the Rust fallback determine whether the expression needs a browser binding. The fallback must therefore read the signals its JavaScript depends on, even if their initial values happen to produce a constant result.
 

@@ -1,4 +1,4 @@
-This crate checks that runtime expressions produce the same outcomes in Rust and JavaScript. It compiles each case with `expr!` and runs the generated JavaScript in V8 with the browser runtime.
+This crate checks that runtime expressions produce the same outcomes in Rust and JavaScript. It compiles each case with `expr!` and runs it in V8 the way a browser does: an expressions script with the case's sites, then the browser runtime resolving the case's data against it.
 
 # Running the suite
 
@@ -67,7 +67,7 @@ Async cases compare final outcomes, not polling counts or scheduling order. Java
 
 [`Observe`] converts Rust values to a comparison format. The JavaScript adapter reads runtime values independently of their serialization and rendering. Comparisons preserve type structure and exact values, including float bits and negative zero. All NaN payloads count as the same value.
 
-A Rust panic agrees with a JavaScript runtime `Panic`, regardless of message wording. Other exceptions, invalid JavaScript, and timeouts fail the case. Failure reports include the expression, both outcomes, and generated JavaScript with serialized captures.
+A Rust panic agrees with a JavaScript runtime `Panic`, regardless of message wording. Other exceptions, invalid JavaScript, and timeouts fail the case. Failure reports include the expression, both outcomes, the expression data with serialized captures, and the expressions script.
 
 # Known mismatches
 
@@ -82,7 +82,7 @@ coherent!(known "captured_nan" => value);
 
 Known mismatches run with the other cases. A changed outcome fails. If the two languages agree, the test fails and asks you to remove the baseline.
 
-A baseline can record an exact JavaScript compilation error or evaluation exception. Such an exception does not count as agreement with a Rust panic. Observer errors, stalled promises, and timeouts always fail, even with a baseline.
+A baseline can record an exact JavaScript evaluation exception. Such an exception does not count as agreement with a Rust panic. A syntax error in the expressions script always fails the case, as it would stop every expression in the browser. Observer errors, stalled promises, and timeouts always fail, even with a baseline.
 
 # Coverage boundaries
 
