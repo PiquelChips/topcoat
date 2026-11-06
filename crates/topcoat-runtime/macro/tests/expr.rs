@@ -541,3 +541,16 @@ async fn signal_reads_and_raw_fallbacks_keep_bindings_but_not_server_dependencie
     assert!(html.contains("data-topcoat-on:input="), "{html}");
     assert!(!html.contains("::topcoat::dep("), "{html}");
 }
+
+/// A `raw!` statement ends with its semicolon, so the statement after it is one
+/// of its own rather than a syntax error in the expressions script.
+#[test]
+fn raw_statements_end_with_their_semicolon() {
+    let value = expr!(|_e: topcoat::runtime::Event| {
+        raw!("first()", ());
+        raw!("second()", ())
+    });
+    let source = value.js().sites()[0].source();
+    assert!(source.contains("first(); "), "{source}");
+    assert!(source.contains("return second();"), "{source}");
+}

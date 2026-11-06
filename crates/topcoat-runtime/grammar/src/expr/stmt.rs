@@ -58,7 +58,23 @@ impl Expr {
                     quote! { #value; }.to_tokens(rust);
                 }
             }
-            Stmt::Macro(stmt_macro) => Self::stmt_macro(stmt_macro, rust, js, names)?,
+            Stmt::Macro(stmt_macro) => {
+                // As an expression statement: the block's value when trailing
+                // without a semicolon, else a statement of its own.
+                let returns = is_last && stmt_macro.semi_token.is_none();
+                if returns {
+                    js.push_str("return ");
+                }
+                let mut value = TokenStream::new();
+                Self::stmt_macro(stmt_macro, &mut value, js, names)?;
+                if returns {
+                    js.push(';');
+                    value.to_tokens(rust);
+                } else {
+                    js.push_str("; ");
+                    quote! { #value; }.to_tokens(rust);
+                }
+            }
             other @ Stmt::Item(_) => {
                 return Err(syn::Error::new_spanned(other, "unsupported statement"));
             }
