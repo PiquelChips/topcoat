@@ -49,7 +49,7 @@ The runtime reruns a page by sending its current signal values to the page's URL
 
 The runtime works under a strict Content Security Policy. It never evaluates code from the page, so `script-src` needs no `'unsafe-eval'` and no `'unsafe-inline'`.
 
-The JavaScript of every runtime expression in your application is collected into one **expressions script**, returned by [`expressions()`]. Pages carry only data: the name of each expression's function and the values it captured. An HTML injection cannot add code through the runtime's attributes, and an expression missing from the script fails with its name instead of running.
+The JavaScript of every runtime expression in your application is collected into one **expressions script**, returned by [`expressions()`]. Pages carry only data: the name of each expression's function and the values it captured. An HTML injection cannot add code through the runtime's attributes, and an expression missing from the script fails with its name instead of running. It can still name an expression the script defines, with values of its own choosing, so keep escaping untrusted text: it only cannot bring new code.
 
 `script()` loads two scripts:
 
